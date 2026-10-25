@@ -173,6 +173,20 @@ def _from_candidates(cands, known):
             posts.append(((title or slug_title(n)).replace("\xa0", " "), n, date or d, desc))
     return posts, len(uniq)
 
+def _enrich_feed(posts, known):
+    """Fill in description (and a missing date) for new feed posts by reading their pages."""
+    out, fetched = [], 0
+    for t, l, d in posts:
+        desc = None
+        if normalize_url(l) not in known and fetched < MAX_NEW_PAGES:
+            fetched += 1
+            time.sleep(0.3)  # be polite
+            meta = page_meta(l)
+            if meta:
+                _, pdate, desc = meta
+                d = d or pdate
+        out.append((t, l, d, desc))
+    return out
 
 def _result(status, domain, message, posts=None, total=0, source=None):
     return {"status": status, "domain": domain, "message": message,
@@ -186,6 +200,7 @@ def discover_posts(raw, con):
                        f"'{raw}' is not a valid or reachable domain. Check the spelling.")
     _, home_status = get(f"https://{domain}")
     blocked = home_status in (403, 429, 503)
+    known = {r[0] for r in con.execute("SELECT url FROM posts")}
 
     # Layer 1: RSS/Atom feed
     for url in find_feed_urls(domain):
@@ -195,9 +210,8 @@ def discover_posts(raw, con):
             continue
         posts = [((t or "").replace("\xa0", " ") or None, l, d) for t, l, d in posts if l]
         if posts:
+            posts = _enrich_feed(posts, known)
             return _result("ok", domain, "", posts, len(posts), f"feed ({url})")
-
-    known = {r[0] for r in con.execute("SELECT url FROM posts")}
 
     # Layer 2: sitemap, Layer 3: crawl blog listing pages
     for source, finder in (("sitemap", sitemap_candidates), ("crawl", crawl_candidates)):
