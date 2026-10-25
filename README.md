@@ -39,6 +39,10 @@ For sitemap and crawl results, each new post page is fetched to read the title (
 
 A Slack Block Kit message via an incoming webhook: headline, linked titles, dates, keyword and volume. Nothing is sent when there are no new posts.
 
+### 5. Pricing change tracking
+
+On every check, the pricing page text is hashed and compared with the stored hash. A change triggers a Slack alert and a warning in the UI.
+
 ## Error handling
 
 | Situation | Behavior |
@@ -75,6 +79,6 @@ CLI: `python run.py example.com`
 
 - Blogs rendered only by JavaScript with no feed or sitemap can't be crawled. A headless browser (Playwright) would be the next step.
 - Aggressive bot protection (Cloudflare challenges) can block all layers.
-- Feed-based posts have no stored meta description yet.
+- Meta descriptions are fetched for at most 25 new posts per run, so very large first scans leave older posts without one.
 - Large first scans can take up to a minute.
-- Pricing page change tracking is not implemented.
+- Pricing tracking hashes the visible text of /pricing, /plans, /pricing-plans or /price. Pages that rotate content (banners, dates) can cause false "changed" alerts, and JavaScript-only pricing pages may not be detected.
