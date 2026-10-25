@@ -30,3 +30,14 @@ def send_slack(domain, items, warning=None, headline=None):
     if r.status_code != 200:
         return False, f"Slack error {r.status_code}: {r.text[:100]}"
     return True, "sent"
+
+def send_pricing_alert(domain, url):
+    hook = os.getenv("SLACK_WEBHOOK_URL")
+    if not hook:
+        return False, "SLACK_WEBHOOK_URL not set"
+    text = f":moneybag: Pricing page changed on {domain}: {url}"
+    try:
+        r = httpx.post(hook, json={"text": text}, timeout=15)
+    except httpx.HTTPError as e:
+        return False, f"Slack unreachable: {e}"
+    return (r.status_code == 200), ("sent" if r.status_code == 200 else f"Slack error {r.status_code}")

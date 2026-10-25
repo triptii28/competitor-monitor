@@ -5,7 +5,8 @@ from fastapi.responses import HTMLResponse
 from db import init, save_new
 from discovery import discover_posts, clean_domain
 from keywords import best_keywords
-from alerts import send_slack
+from pricing import check_pricing
+from alerts import send_slack, send_pricing_alert
 
 app = FastAPI()
 FIRST_RUN_SHOW = 5
@@ -21,9 +22,22 @@ def run_check(raw):
 
     new = save_new(con, domain, res["posts"])
     total = con.execute("SELECT COUNT(*) FROM posts WHERE domain=?", (domain,)).fetchone()[0]
+
+    # Pricing page check (runs on every check, even if there are no new posts)
+    try:
+        pr = check_pricing(con, domain)
+    except Exception:
+        pr = {"status": "none", "url": None}
+    pricing_msg = {"none": "No pricing page found.",
+                   "baseline": "Pricing page recorded as baseline.",
+                   "unchanged": "Pricing page unchanged.",
+                   "changed": "PRICING CHANGED since last check."}[pr["status"]]
+    if pr["status"] == "changed":
+        send_pricing_alert(domain, pr["url"])
+
     out = {"status": "ok", "domain": domain, "source": res["source"], "found": res["total"],
            "new_count": len(new), "previously_seen": total - len(new), "first_run": is_first,
-           "warning": None, "slack": None, "new": [], "message": ""}
+           "warning": None, "slack": None, "new": [], "message": "", "pricing": pricing_msg}
     if not new:
         out["message"] = "Nothing new since the last check."
         return out
@@ -44,7 +58,6 @@ def run_check(raw):
     ok, msg = send_slack(domain, items, warning, headline)
     out["slack"] = msg
     return out
-
 
 @app.get("/api/check")
 def api_check(domain: str):
@@ -82,6 +95,7 @@ async function run(){
   let h='<div class="box ok"><b>'+esc(r.domain)+'</b>: found '+r.found+' posts via '+esc(r.source)+
         ' | '+r.new_count+' new | '+r.previously_seen+' previously seen<br>'+esc(r.message)+'</div>';
   if(r.warning) h+='<div class="box warn">Warning: '+esc(r.warning)+'</div>';
+      if(r.pricing) h+='<div class="box '+(r.pricing.startsWith("PRICING")?"warn":"")+'">Pricing: '+esc(r.pricing)+'</div>';
   if(r.slack) h+='<div class="box">Slack: '+esc(r.slack)+'</div>';
   if(r.new.length){
     h+='<table><tr><th>Post</th><th>Date</th><th>Keyword</th><th>Volume</th></tr>';
