@@ -15,6 +15,7 @@ STOP = {"how", "to", "the", "a", "an", "what", "is", "it", "why", "best",
 
 def extract_keyword(title):
     """Take the part before ':' or ' - ', drop filler words, keep up to 4 words."""
+    t = (title or "").replace("\xa0", " ")
     t = re.sub(r"[’']s\b", "", t)
     head = re.split(r":|\s[-–—|]\s|\|", t)[0].strip() or t
     head = re.sub(r"[^\w\s-]", " ", head.lower())
