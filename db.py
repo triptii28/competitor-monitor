@@ -1,7 +1,14 @@
+import os
 import sqlite3
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 DB = "monitor.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 def normalize_url(url):
     """Make equivalent URLs identical so they aren't counted as new."""
@@ -14,7 +21,43 @@ def normalize_url(url):
                        if not k.lower().startswith("utm_")])
     return urlunparse(("https", host, path, "", query, ""))
 
+
+class PG:
+    """Makes a Postgres connection behave like the SQLite one the rest of the code uses."""
+
+    def __init__(self, conn):
+        self.conn = conn
+
+    def execute(self, sql, params=()):
+        s = sql.strip()
+        if s.startswith("INSERT OR IGNORE INTO"):
+            s = s.replace("INSERT OR IGNORE INTO", "INSERT INTO", 1) + " ON CONFLICT DO NOTHING"
+        elif s.startswith("INSERT OR REPLACE INTO keyword_cache"):
+            s = ("INSERT INTO keyword_cache(keyword, volume) VALUES (?,?) "
+                 "ON CONFLICT (keyword) DO UPDATE SET volume=EXCLUDED.volume")
+        s = s.replace("?", "%s")
+        cur = self.conn.cursor()
+        cur.execute(s, params)
+        return cur
+
+    def commit(self):
+        self.conn.commit()
+
+
 def init():
+    if DATABASE_URL:
+        import psycopg
+        con = PG(psycopg.connect(DATABASE_URL))
+        con.execute("""CREATE TABLE IF NOT EXISTS posts(
+            id SERIAL PRIMARY KEY,
+            domain TEXT,
+            url TEXT UNIQUE,
+            title TEXT,
+            published_at TEXT,
+            description TEXT,
+            first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+        con.commit()
+        return con
     con = sqlite3.connect(DB)
     con.execute("""CREATE TABLE IF NOT EXISTS posts(
         id INTEGER PRIMARY KEY,
@@ -28,6 +71,7 @@ def init():
         con.execute("ALTER TABLE posts ADD COLUMN description TEXT")
     con.commit()
     return con
+
 
 def save_new(con, domain, posts):
     """posts = list of (title, url, date[, description]). Returns new ones as (title, url, date)."""
