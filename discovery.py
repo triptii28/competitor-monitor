@@ -188,6 +188,18 @@ def _enrich_feed(posts, known):
         out.append((t, l, d, desc))
     return out
 
+CHALLENGE = ("checking your browser", "just a moment", "attention required",
+             "verify you are human", "captcha", "access denied",
+             "are you a robot", "unusual traffic")
+
+
+def looks_blocked(posts):
+    """True if most fetched 'posts' are really bot-check pages."""
+    if not posts:
+        return False
+    bad = sum(1 for p in posts if any(m in (p[0] or "").lower() for m in CHALLENGE))
+    return bad >= max(1, len(posts) // 2)
+
 def _result(status, domain, message, posts=None, total=0, source=None):
     return {"status": status, "domain": domain, "message": message,
             "posts": posts or [], "total": total, "source": source}
@@ -218,6 +230,10 @@ def discover_posts(raw, con):
         cands = finder(domain)
         if cands:
             posts, total = _from_candidates(cands, known)
+            if looks_blocked(posts):
+                return _result("blocked", domain,
+                               "Site served a bot-check/CAPTCHA page instead of content, "
+                               "so it blocked automated access.")
             return _result("ok", domain, "", posts, total, source)
 
     if blocked:

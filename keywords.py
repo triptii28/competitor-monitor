@@ -48,6 +48,8 @@ def _fetch(keywords):
         except Exception:
             msg = "access denied"
         return {}, f"DataForSEO access denied: {msg[:120]}"
+    if r.status_code == 402:
+        return {}, "DataForSEO balance exhausted (HTTP 402): keyword data unavailable"
     if r.status_code != 200:
         return {}, f"Keyword API error: HTTP {r.status_code}"
     try:
