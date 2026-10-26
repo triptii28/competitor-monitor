@@ -33,7 +33,7 @@ def dns_ok(domain):
 def get(url):
     """Returns (text or None, status code or None)."""
     try:
-        r = httpx.get(url, headers=HEADERS, timeout=15, follow_redirects=True)
+        r = httpx.get(url, headers=HEADERS, timeout=8, follow_redirects=True)
         return (r.text if r.status_code == 200 else None), r.status_code
     except httpx.HTTPError:
         return None, None
@@ -60,7 +60,7 @@ def looks_like_post(url, domain):
 
 def _read_sitemaps(start):
     out, seen, queue = [], set(), [(s, 0) for s in start]
-    while queue and len(seen) < 15:
+    while queue and len(seen) < 6 and len(out) < 20000:
         sm, depth = queue.pop(0)
         if sm in seen:
             continue
@@ -161,14 +161,15 @@ def _from_candidates(cands, known):
         if n not in seen:
             seen.add(n)
             uniq.append((n, d))
-    posts, fetched = [], 0
+    posts, fetched, fails = [], 0, 0
     for n, d in uniq:
         if n in known:
             posts.append((slug_title(n), n, d, None))
-        elif fetched < MAX_NEW_PAGES:
+        elif fetched < MAX_NEW_PAGES and fails < 3:
             fetched += 1
             time.sleep(0.3)  # be polite
             meta = page_meta(n)
+            fails = 0 if meta else fails + 1
             title, date, desc = meta if meta else (None, None, None)
             posts.append(((title or slug_title(n)).replace("\xa0", " "), n, date or d, desc))
     return posts, len(uniq)

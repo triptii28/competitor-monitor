@@ -123,8 +123,13 @@ async function run(){
   if(!d){return}
   btn.disabled=true;lbl.textContent="Checking...";
   out.innerHTML='<div class="card">Working on it. A first scan of a large site can take up to a minute.</div>';
-  let r;
-  try{ r=await (await fetch("/api/check?domain="+encodeURIComponent(d))).json(); }
+    let r;
+  try{
+    const resp=await fetch("/api/check?domain="+encodeURIComponent(d));
+    const txt=await resp.text();
+    try{ r=JSON.parse(txt); }
+    catch(e2){ r={status:"error",message:"The server did not return a valid answer (HTTP "+resp.status+"). It may be waking up or the check timed out. Wait a minute and try again."}; }
+  }
   catch(e){ out.innerHTML='<div class="card"><span class="badge b-err">Request failed</span> '+esc(e)+'</div>'; done(); return; }
   if(r.status!=="ok"){
     out.innerHTML='<div class="card"><span class="badge b-err">'+esc(LABELS[r.status]||r.status)+'</span><div class="note n-err">'+esc(r.message)+'</div></div>';

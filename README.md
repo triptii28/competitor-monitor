@@ -83,3 +83,4 @@ CLI: `python run.py example.com`
 - Large first scans can take up to a minute.
 - Pricing tracking hashes the visible text of /pricing, /plans, /pricing-plans or /price. Pages that rotate content (banners, dates) can cause false "changed" alerts, and JavaScript-only pricing pages may not be detected.
 - Keyword volumes depend on DataForSEO trial credit. When the credit is exhausted (HTTP 402) the tool shows a warning and reports posts with volume "unavailable". Keywords already fetched are cached and still show their volumes.
+- Cloud-hosted requests are blocked more often than local ones, so results for protected sites can differ between environments.
