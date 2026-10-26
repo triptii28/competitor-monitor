@@ -230,6 +230,11 @@ def discover_posts(raw, con):
         cands = finder(domain)
         if cands:
             posts, total = _from_candidates(cands, known)
+            new_posts = [p for p in posts if p[1] not in known]
+            if new_posts and all(p[0] == slug_title(p[1]) for p in new_posts):
+                return _result("blocked", domain,
+                               "Site listed its posts but refused every page fetch, "
+                               "so titles and dates could not be read (automated access blocked).")
             if looks_blocked(posts):
                 return _result("blocked", domain,
                                "Site served a bot-check/CAPTCHA page instead of content, "
