@@ -19,7 +19,7 @@ Tried in order until posts are found:
 2. **Sitemap**: from `robots.txt` or `/sitemap.xml`, following sitemap indexes and preferring blog-related sitemaps. URLs are filtered to article-like paths (category, tag and author pages excluded).
 3. **HTML crawl**: homepage links plus `/blog`, `/resources`, `/articles`, `/news`, `/insights`, `/learn` and `blog.<domain>`.
 
-For sitemap and crawl results, each new post page is fetched to read the title (`og:title`, `<title>`, `h1`), date (`article:published_time`, JSON-LD `datePublished`, `<time>`) and meta description. At most 25 new pages are fetched per run, with a short delay between requests.
+For sitemap and crawl results, each new post page is fetched to read the title (`og:title`, `<title>`, `h1`), date (`article:published_time`, JSON-LD `datePublished`, `<time>`) and meta description. At most 12 new pages per run are fetched for metadata (also for feed posts, to read their meta descriptions), with a short delay between requests. The scraper stops early if a site refuses several page fetches in a row.
 
 ### 2. Change detection
 
@@ -45,14 +45,15 @@ On every check, the pricing page text is hashed and compared with the stored has
 
 ## Error handling
 
-| Situation | Behavior |
-| --- | --- |
-| Invalid domain / DNS failure | `invalid_domain` message |
-| No blog found | `no_blog`: "No blog/content section detected" |
-| 403/429/503 on the homepage | Feed, sitemap and crawl are still tried. Only if all fail: `blocked` message |
-| Site not responding | `unreachable` message |
-| Missing or invalid keyword API key / unverified account | Warning shown in the UI and Slack. Posts are still reported with volume "unavailable" |
-| Slack webhook missing or failing | Reported in the UI, no crash |
+- **Invalid domain / DNS failure:** the tool shows an `invalid_domain` message and does nothing else.
+- **No blog found:** the tool shows `no_blog` with the text "No blog/content section detected on this site."
+- **Site not responding:** the tool shows an `unreachable` message.
+- **Homepage returns 403, 429 or 503:** the feed, sitemap and crawl are still tried. Only if all three fail does the tool report `blocked`.
+- **Site serves a CAPTCHA or bot-check page:** this is detected from the page titles (for example "Checking your browser"). The tool reports `blocked` and stores nothing.
+- **Sitemap lists posts but every page fetch is refused:** the tool reports `blocked` instead of storing titles guessed from the URL slugs.
+- **Keyword API credentials missing, invalid, or account not verified:** a warning is shown in the UI and in Slack. Posts are still reported, with volume "unavailable".
+- **Keyword API balance exhausted (HTTP 402):** a warning is shown, and posts are reported with volume "unavailable". Keywords already cached still show their volumes.
+- **Slack webhook missing or failing:** the problem is reported in the UI and the tool does not crash.
 
 ## Tech
 
@@ -79,7 +80,7 @@ CLI: `python run.py example.com`
 
 - Blogs rendered only by JavaScript with no feed or sitemap can't be crawled. A headless browser (Playwright) would be the next step.
 - Aggressive bot protection (Cloudflare challenges) can block all layers.
-- Meta descriptions are fetched for at most 25 new posts per run, so very large first scans leave older posts without one.
+- Meta descriptions are fetched for at most 12 new posts per run, so very large first scans leave older posts without one.
 - Large first scans can take up to a minute.
 - Pricing tracking hashes the visible text of /pricing, /plans, /pricing-plans or /price. Pages that rotate content (banners, dates) can cause false "changed" alerts, and JavaScript-only pricing pages may not be detected.
 - Keyword volumes depend on DataForSEO trial credit. When the credit is exhausted (HTTP 402) the tool shows a warning and reports posts with volume "unavailable". Keywords already fetched are cached and still show their volumes.
