@@ -68,45 +68,91 @@ def api_check(domain: str):
 
 
 PAGE = """<!doctype html>
-<html><head><meta charset="utf-8"><title>Competitor Monitor</title>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Competitor Monitor</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:860px;margin:40px auto;padding:0 16px;color:#222}
-input{padding:10px;width:60%;font-size:16px} button{padding:10px 18px;font-size:16px;cursor:pointer}
-.box{margin-top:20px;padding:12px 16px;border-radius:8px;background:#f3f4f6}
-.warn{background:#fff7e0}.err{background:#fde8e8}.ok{background:#e8f7ec}
-table{border-collapse:collapse;width:100%;margin-top:16px} td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}
-small{color:#666}
-</style></head><body>
+:root{--bg:#f6f7fb;--card:#fff;--text:#1d2433;--muted:#6b7385;--line:#e4e7ef;--accent:#4f46e5;
+--okbg:#e6f6ec;--ok:#157a3c;--warnbg:#fff4d6;--warn:#8a5a00;--errbg:#fde8e8;--err:#b42318;--chip:#eef0ff}
+@media (prefers-color-scheme:dark){:root{--bg:#10131a;--card:#181c26;--text:#e8ebf3;--muted:#98a1b5;--line:#2a3040;
+--accent:#818cf8;--okbg:#14301f;--ok:#6ee7a0;--warnbg:#3a2f10;--warn:#fbd36b;--errbg:#3b1717;--err:#ff9b92;--chip:#232845}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.5}
+.wrap{max-width:880px;margin:0 auto;padding:32px 16px 64px}
+h1{margin:0 0 4px;font-size:28px}
+.sub{color:var(--muted);margin:0 0 24px}
+.bar{display:flex;gap:8px;flex-wrap:wrap}
+.bar input{flex:1;min-width:200px;padding:12px 14px;font-size:16px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text)}
+.bar button{padding:12px 22px;font-size:16px;font-weight:600;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;display:flex;align-items:center;gap:8px}
+.bar button:disabled{opacity:.6;cursor:wait}
+.spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;display:none}
+button:disabled .spin{display:inline-block}
+@keyframes s{to{transform:rotate(360deg)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:16px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:600}
+.b-ok{background:var(--okbg);color:var(--ok)}.b-warn{background:var(--warnbg);color:var(--warn)}
+.b-err{background:var(--errbg);color:var(--err)}.b-info{background:var(--chip);color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.stat{background:var(--bg);border-radius:10px;padding:10px;text-align:center}
+.stat b{display:block;font-size:22px}.stat span{color:var(--muted);font-size:13px}
+.post h3{margin:0 0 4px;font-size:17px}
+.post a{color:var(--text);text-decoration:none}.post a:hover{color:var(--accent);text-decoration:underline}
+.desc{color:var(--muted);font-size:14px;margin:4px 0 10px}
+.chip{display:inline-block;background:var(--chip);color:var(--accent);padding:3px 10px;border-radius:8px;font-size:13px;font-weight:600}
+.date{color:var(--muted);font-size:13px}
+.note{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:14px}
+.n-warn{background:var(--warnbg);color:var(--warn)}.n-err{background:var(--errbg);color:var(--err)}
+.n-ok{background:var(--okbg);color:var(--ok)}
+@media (max-width:520px){.stats{grid-template-columns:1fr}}
+</style></head><body><div class="wrap">
 <h1>Competitor Monitor</h1>
-<p>Enter a competitor domain. The tool finds its blog posts and reports only what is new since the last check.</p>
-<input id="d" placeholder="example.com"> <button onclick="run()">Run check</button>
+<p class="sub">Enter a competitor domain. The tool finds its blog posts and reports only what is new since the last check.</p>
+<div class="bar">
+<input id="d" placeholder="example.com" autocomplete="off">
+<button id="go" onclick="run()"><span class="spin"></span><span id="lbl">Run check</span></button>
+</div>
 <div id="out"></div>
+</div>
 <script>
-function esc(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+const LABELS={invalid_domain:"Invalid domain",no_blog:"No blog found",blocked:"Blocked by site",unreachable:"Site unreachable",error:"Error"};
 async function run(){
-  const out=document.getElementById("out");
+  const out=document.getElementById("out"),btn=document.getElementById("go"),lbl=document.getElementById("lbl");
   const d=document.getElementById("d").value.trim();
   if(!d){return}
-  out.innerHTML='<div class="box">Checking... this can take up to a minute on a first scan.</div>';
+  btn.disabled=true;lbl.textContent="Checking...";
+  out.innerHTML='<div class="card">Working on it. A first scan of a large site can take up to a minute.</div>';
   let r;
   try{ r=await (await fetch("/api/check?domain="+encodeURIComponent(d))).json(); }
-  catch(e){ out.innerHTML='<div class="box err">Request failed: '+esc(String(e))+'</div>'; return; }
-  if(r.status!=="ok"){ out.innerHTML='<div class="box err"><b>'+esc(r.status)+'</b>: '+esc(r.message)+'</div>'; return; }
-  let h='<div class="box ok"><b>'+esc(r.domain)+'</b>: found '+r.found+' posts via '+esc(r.source)+
-        ' | '+r.new_count+' new | '+r.previously_seen+' previously seen<br>'+esc(r.message)+'</div>';
-  if(r.warning) h+='<div class="box warn">Warning: '+esc(r.warning)+'</div>';
-      if(r.pricing) h+='<div class="box '+(r.pricing.startsWith("PRICING")?"warn":"")+'">Pricing: '+esc(r.pricing)+'</div>';
-  if(r.slack) h+='<div class="box">Slack: '+esc(r.slack)+'</div>';
-  if(r.new.length){
-    h+='<table><tr><th>Post</th><th>Date</th><th>Keyword</th><th>Volume</th></tr>';
-    for(const p of r.new){
-      h+='<tr><td><a href="'+esc(p.url)+'" target="_blank">'+esc(p.title)+'</a><br><small>'+esc(p.description)+'</small></td><td>'+
-         esc(p.date||"unknown")+'</td><td>'+esc(p.keyword)+'</td><td>'+(p.volume==null?"unavailable":p.volume.toLocaleString())+'</td></tr>';
-    }
-    h+='</table>';
+  catch(e){ out.innerHTML='<div class="card"><span class="badge b-err">Request failed</span> '+esc(e)+'</div>'; done(); return; }
+  if(r.status!=="ok"){
+    out.innerHTML='<div class="card"><span class="badge b-err">'+esc(LABELS[r.status]||r.status)+'</span><div class="note n-err">'+esc(r.message)+'</div></div>';
+    done(); return;
+  }
+  let h='<div class="card"><div class="row"><b style="font-size:18px">'+esc(r.domain)+'</b>'+
+    '<span class="badge b-info">via '+esc(r.source)+'</span>'+
+    (r.first_run?'<span class="badge b-warn">First scan (baseline)</span>':'')+
+    (r.new_count>0?'<span class="badge b-ok">'+r.new_count+' new</span>':'<span class="badge b-info">Nothing new</span>')+'</div>'+
+    '<div class="stats"><div class="stat"><b>'+r.found+'</b><span>posts found</span></div>'+
+    '<div class="stat"><b>'+r.new_count+'</b><span>new</span></div>'+
+    '<div class="stat"><b>'+r.previously_seen+'</b><span>previously seen</span></div></div>'+
+    (r.message?'<div class="note n-ok">'+esc(r.message)+'</div>':'')+
+    (r.warning?'<div class="note n-warn">Warning: '+esc(r.warning)+'</div>':'')+
+    (r.pricing?'<div class="note '+(r.pricing.startsWith("PRICING")?'n-warn':'n-ok')+'">Pricing: '+esc(r.pricing)+'</div>':'')+
+    (r.slack?'<div class="note '+(r.slack==="sent"?'n-ok':'n-warn')+'">Slack: '+esc(r.slack)+'</div>':'')+
+    '</div>';
+  for(const p of (r.new||[])){
+    const vol=(p.volume==null)?'<span class="chip" style="opacity:.6">volume unavailable</span>':'<span class="chip">'+p.volume.toLocaleString()+' searches/mo</span>';
+    h+='<div class="card post"><h3><a href="'+esc(p.url)+'" target="_blank" rel="noopener">'+esc(p.title)+'</a></h3>'+
+      '<div class="date">'+esc(p.date||"date unknown")+'</div>'+
+      (p.description?'<div class="desc">'+esc(p.description)+'</div>':'<div class="desc"></div>')+
+      '<div class="row"><span class="chip">'+esc(p.keyword)+'</span>'+vol+'</div></div>';
   }
   out.innerHTML=h;
+  done();
 }
+function done(){const b=document.getElementById("go");b.disabled=false;document.getElementById("lbl").textContent="Run check";}
 document.getElementById("d").addEventListener("keydown",e=>{if(e.key==="Enter")run()});
 </script></body></html>"""
 
